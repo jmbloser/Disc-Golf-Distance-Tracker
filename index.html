@@ -117,6 +117,7 @@
     width: 100%;
   }
   .rt-input:focus { outline: 2px solid var(--sky); outline-offset: 1px; }
+  .rt-input::placeholder { color: var(--muted); opacity: 1; }
   .rt-input-sm { width: 84px; padding: 7px 9px; font-size: 13px; }
 
   .rt-color-row { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -180,6 +181,7 @@
     background: none; border: none; cursor: pointer;
     color: var(--muted); padding: 6px; border-radius: 8px;
     display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
   }
   .rt-icon-btn:hover { background: var(--paper-2); color: var(--flag); }
 
@@ -230,33 +232,33 @@
   }
   .rt-select-check { position: absolute; top: 6px; right: 6px; color: var(--fairway); }
 
-  .rt-loc-pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
-  .rt-loc-pill {
+  .rt-pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .rt-pill {
     border: 1.5px solid var(--line); border-radius: 999px; padding: 7px 13px 7px 10px;
     background: var(--paper); font-size: 12.5px; font-weight: 600; color: var(--ink);
     cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
     font-family: 'Inter', sans-serif; max-width: 100%;
   }
-  .rt-loc-pill span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .rt-loc-pill-on { border-color: var(--fairway); background: #E7F0E3; color: var(--fairway-dark); }
+  .rt-pill span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rt-pill-on { border-color: var(--fairway); background: #E7F0E3; color: var(--fairway-dark); }
   .rt-radio-dot {
     width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--muted);
     display: inline-block; flex-shrink: 0; box-sizing: border-box;
   }
-  .rt-loc-pill-on .rt-radio-dot { border-color: var(--fairway); background: var(--fairway); box-shadow: inset 0 0 0 2px #fff; }
-
-  .rt-session-header { padding-bottom: 2px; }
-  .rt-session-loc {
-    font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 17px;
-    display: flex; align-items: center; gap: 6px; color: var(--fairway-dark);
-  }
-  .rt-session-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .rt-pill-on .rt-radio-dot { border-color: var(--fairway); background: var(--fairway); box-shadow: inset 0 0 0 2px #fff; }
 
   .rt-note {
-    display: flex; gap: 8px; align-items: flex-start;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
     background: #FBF3E4; border: 1px solid #E8D7A8; color: #7A5A12;
     border-radius: 9px; padding: 10px 11px; font-size: 12.5px; line-height: 1.4;
   }
+  .rt-note-head { display: flex; gap: 8px; align-items: flex-start; }
+  .rt-help-block { margin-top: 6px; }
+  .rt-help-title {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--fairway-dark); font-weight: 600; margin-bottom: 2px;
+  }
+  .rt-help-text { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin: 0 0 8px; }
   .rt-error {
     display: flex; gap: 6px; align-items: center;
     color: var(--flag-dark); font-size: 12.5px; margin: 6px 0 0;
@@ -293,6 +295,25 @@
     font-family: 'IBM Plex Mono', monospace; font-size: 11px; text-transform: uppercase;
     letter-spacing: 0.05em; color: var(--muted); padding: 10px 2px 4px;
   }
+
+  .rt-disc-item { background: #fff; border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+  .rt-disc-row {
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+    cursor: pointer; background: none; border: none; width: 100%; text-align: left;
+  }
+  .rt-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 0 10px 10px; }
+  .rt-stat { text-align: center; background: var(--paper); border: 1px solid var(--line); border-radius: 9px; padding: 8px 4px; }
+  .rt-stat-val { font-size: 14px; font-weight: 600; color: var(--fairway-dark); font-family: 'IBM Plex Mono', monospace; }
+  .rt-stat-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-top: 2px; }
+
+  .rt-select-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+
+  .rt-session-header { padding-bottom: 2px; }
+  .rt-session-loc {
+    font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 17px;
+    display: flex; align-items: center; gap: 6px; color: var(--fairway-dark);
+  }
+  .rt-session-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
   .rt-history-item { position: relative; overflow: hidden; border-radius: 11px; }
   .rt-swipe-actions { position: absolute; inset: 0; display: flex; justify-content: flex-end; }
@@ -469,6 +490,7 @@ var ui = {
   selectedDiscIds: new Set(),
   addFormColor: DISC_COLORS[4].hex,
   openHistoryId: null,
+  openDiscStatsId: null,
 };
 
 var swipe = { active: false, id: null, el: null, startX: 0, startY: 0, baseX: 0, dx: 0, locked: null, openId: null, wasDrag: false };
@@ -479,13 +501,40 @@ var swipe = { active: false, id: null, el: null, startX: 0, startY: 0, baseX: 0,
 
 function migrateSession(s) {
   if (!s) return s;
-  if (s.throws) return s;
-  return {
-    id: s.id, location: s.location, startedAt: s.startedAt, discIds: s.discIds,
-    throws: [{ start: s.start || null, recoveries: s.recoveries || {}, odometerM: s.odometerM || 0 }],
-  };
+  var out = s;
+  if (!s.throws) {
+    out = {
+      id: s.id, location: s.location, startedAt: s.startedAt, discIds: s.discIds,
+      throws: [{ start: s.start || null, recoveries: s.recoveries || {}, odometerM: s.odometerM || 0 }],
+    };
+  }
+  // migrate old session-level throw style (from a previous version) onto the first throw
+  if ((s.throwType || s.throwModifier) && out.throws && out.throws[0] && !out.throws[0].throwTypeChoice && !out.throws[0].throwModifier) {
+    var tt = s.throwType;
+    if (tt === 'Backhand' || tt === 'Forehand') {
+      out.throws[0].throwTypeChoice = tt;
+    } else if (tt) {
+      out.throws[0].throwTypeChoice = 'Other';
+      out.throws[0].throwTypeCustom = tt;
+    }
+    if (s.throwModifier) out.throws[0].throwModifier = s.throwModifier;
+  }
+  return out;
 }
 function currentThrow() { return ACTIVE.throws[ACTIVE.throws.length - 1]; }
+function resolvedThrowType(t) {
+  if (!t) return null;
+  if (t.throwTypeChoice === 'Backhand' || t.throwTypeChoice === 'Forehand') return t.throwTypeChoice;
+  if (t.throwTypeChoice === 'Other') return (t.throwTypeCustom || '').trim() || null;
+  return null;
+}
+function throwStyleLabel(t) {
+  var parts = [];
+  var rt = resolvedThrowType(t);
+  if (rt) parts.push(rt);
+  if (t.throwModifier) parts.push(t.throwModifier);
+  return parts.length ? (' · ' + parts.join(' ')) : '';
+}
 
 /* ================================================================ */
 /*  Saved locations (up to 4, most-recently-used)                    */
@@ -499,6 +548,34 @@ function addLocation(name) {
   LOCATIONS.unshift(name);
   if (LOCATIONS.length > 4) LOCATIONS = LOCATIONS.slice(0, 4);
   saveKey(KEYS.locations, LOCATIONS);
+}
+
+/* ================================================================ */
+/*  Per-disc stats                                                    */
+/* ================================================================ */
+
+function discStats(discId) {
+  var dists = [];
+  function collect(throwsArr) {
+    (throwsArr || []).forEach(function (t) {
+      var r = t.recoveries && t.recoveries[discId];
+      if (r) dists.push(r.distanceM);
+    });
+  }
+  SESSIONS.forEach(function (s) { collect(s.throws); });
+  if (ACTIVE) collect(ACTIVE.throws);
+  if (dists.length === 0) return null;
+  var sum = dists.reduce(function (a, b) { return a + b; }, 0);
+  return { count: dists.length, avg: sum / dists.length, min: Math.min.apply(null, dists), max: Math.max.apply(null, dists) };
+}
+function statsBlockHtml(stats) {
+  if (!stats) return '<p class="rt-help-text" style="padding:0 12px 10px">No recorded throws yet.</p>';
+  return '<div class="rt-stats-grid">' +
+    '<div class="rt-stat"><div class="rt-stat-val">' + stats.count + '</div><div class="rt-stat-label">throws</div></div>' +
+    '<div class="rt-stat"><div class="rt-stat-val">' + fmtDist(stats.avg, UNIT) + '</div><div class="rt-stat-label">avg</div></div>' +
+    '<div class="rt-stat"><div class="rt-stat-val">' + fmtDist(stats.min, UNIT) + '</div><div class="rt-stat-label">min</div></div>' +
+    '<div class="rt-stat"><div class="rt-stat-val">' + fmtDist(stats.max, UNIT) + '</div><div class="rt-stat-label">max</div></div>' +
+  '</div>';
 }
 
 /* ================================================================ */
@@ -537,11 +614,18 @@ function bagTabHtml() {
           '<button class="rt-btn-sm rt-btn-ghost" data-action="remove-disc-cancel">Cancel</button>' +
         '</div></li>';
     }
-    return '<li class="rt-list-row">' + discChip(d.color) +
-      '<div class="rt-list-main"><div class="rt-list-title">' + escapeHtml(d.brand) +
-      '</div><div class="rt-list-sub rt-mono">' + (d.weight ? d.weight + 'g' : 'weight —') + '</div></div>' +
+    var isOpen = ui.openDiscStatsId === d.id;
+    var stats = discStats(d.id);
+    var header = '<div class="rt-disc-row" data-action="toggle-disc-stats" data-id="' + d.id + '">' +
+      discChip(d.color) +
+      '<div class="rt-list-main"><div class="rt-list-title">' + escapeHtml(d.brand) + '</div>' +
+        '<div class="rt-list-sub rt-mono">' + (d.weight ? d.weight + 'g' : 'weight —') +
+        (stats ? ' · ' + stats.count + ' throw' + (stats.count !== 1 ? 's' : '') : '') + '</div></div>' +
+      (isOpen ? icon('chevronup', 16) : icon('chevrondown', 16)) +
       '<button class="rt-icon-btn" data-action="remove-disc-ask" data-id="' + d.id + '">' + icon('trash', 17) + '</button>' +
-      '</li>';
+    '</div>';
+    var detail = isOpen ? statsBlockHtml(stats) : '';
+    return '<li class="rt-disc-item">' + header + detail + '</li>';
   }).join('');
 
   var list = DISCS.length === 0
@@ -602,11 +686,23 @@ function startSessionHtml() {
   var count = ui.selectedDiscIds.size > 0 ? ' (' + ui.selectedDiscIds.size + ')' : '';
 
   var locPills = LOCATIONS.length > 0
-    ? '<div class="rt-loc-pill-row" id="loc-pill-row">' + LOCATIONS.map(function (loc) {
-        return '<button type="button" class="rt-loc-pill" data-action="pick-location" data-loc="' + escapeHtml(loc) + '">' +
+    ? '<div class="rt-pill-row" id="loc-pill-row">' + LOCATIONS.map(function (loc) {
+        return '<button type="button" class="rt-pill" data-action="pick-location" data-loc="' + escapeHtml(loc) + '">' +
           '<span class="rt-radio-dot"></span><span>' + escapeHtml(loc) + '</span></button>';
       }).join('') + '</div>'
     : '';
+
+  var gpsNote = '<div class="rt-note">' +
+    '<div class="rt-note-head">' + icon('alert', 14) +
+      ' <span>Make sure Location Services is turned on for your browser — GPS needs it to log throws automatically.</span></div>' +
+    '<button type="button" class="rt-link-btn" data-action="toggle-gps-help">How do I turn that on?</button>' +
+    '<div id="gps-help-detail" style="display:none;width:100%">' +
+      '<div class="rt-help-block"><div class="rt-help-title">iPhone — Safari</div>' +
+        '<p class="rt-help-text">Settings → Privacy &amp; Security → Location Services (turn on) → scroll down to Safari Websites → choose "While Using the App" or "Ask Next Time."</p></div>' +
+      '<div class="rt-help-block"><div class="rt-help-title">Android — Chrome</div>' +
+        '<p class="rt-help-text">Settings &rarr; Location (turn on) &rarr; App permissions &rarr; Chrome &rarr; Location &rarr; "Allow only while using the app." Then check the site is not blocked via the lock icon in Chrome&rsquo;s address bar.</p></div>' +
+    '</div>' +
+  '</div>';
 
   return '<div class="rt-tab-content"><div class="rt-card">' +
     '<div class="rt-field"><label class="rt-label">Course / field <span class="rt-label-note">(optional)</span></label>' +
@@ -614,6 +710,7 @@ function startSessionHtml() {
       '<input class="rt-input" id="start-location" placeholder="e.g. Riverside DGC, hole 7 tee"></div>' +
     '<div class="rt-field"><label class="rt-label">Discs to throw <span class="rt-mono" id="sel-count">' + count + '</span></label>' +
       discsBlock + '</div>' +
+    gpsNote +
     '<div id="start-error" class="rt-error" style="display:none"></div>' +
     '<button class="rt-btn rt-btn-flag" data-action="begin-session">' + icon('flag', 16) + ' Begin throwing</button>' +
   '</div></div>';
@@ -632,8 +729,62 @@ function doToggleSelectDisc(id, btnEl) {
 function doPickLocation(loc, btnEl) {
   var input = document.getElementById('start-location');
   if (input) input.value = loc;
-  document.querySelectorAll('#loc-pill-row .rt-loc-pill').forEach(function (b) { b.classList.remove('rt-loc-pill-on'); });
-  btnEl.classList.add('rt-loc-pill-on');
+  document.querySelectorAll('#loc-pill-row .rt-pill').forEach(function (b) { b.classList.remove('rt-pill-on'); });
+  btnEl.classList.add('rt-pill-on');
+}
+function doPickThrowTypeLive(val, btnEl) {
+  if (!ACTIVE) return;
+  var t = currentThrow();
+  var row = document.getElementById('throwtype-row');
+  var otherInput = document.getElementById('throwtype-other-input');
+  var wasOn = btnEl.classList.contains('rt-pill-on');
+  row.querySelectorAll('.rt-pill').forEach(function (b) { b.classList.remove('rt-pill-on'); });
+  if (wasOn) {
+    t.throwTypeChoice = null; t.throwTypeCustom = '';
+    if (otherInput) { otherInput.style.display = 'none'; otherInput.value = ''; }
+  } else {
+    btnEl.classList.add('rt-pill-on');
+    t.throwTypeChoice = val;
+    if (val === 'Other') {
+      if (otherInput) { otherInput.style.display = 'block'; otherInput.focus(); }
+    } else {
+      t.throwTypeCustom = '';
+      if (otherInput) { otherInput.style.display = 'none'; otherInput.value = ''; }
+    }
+  }
+  saveKey(KEYS.active, ACTIVE);
+  updateThrowMetaDom();
+}
+function doPickModifierLive(val, btnEl) {
+  if (!ACTIVE) return;
+  var t = currentThrow();
+  var row = document.getElementById('modifier-row');
+  var wasOn = btnEl.classList.contains('rt-pill-on');
+  row.querySelectorAll('.rt-pill').forEach(function (b) { b.classList.remove('rt-pill-on'); });
+  t.throwModifier = wasOn ? null : val;
+  if (!wasOn) btnEl.classList.add('rt-pill-on');
+  saveKey(KEYS.active, ACTIVE);
+  updateThrowMetaDom();
+}
+function onThrowTypeOtherInput(e) {
+  if (!ACTIVE) return;
+  var t = currentThrow();
+  t.throwTypeCustom = e.target.value;
+  saveKey(KEYS.active, ACTIVE);
+  updateThrowMetaDom();
+}
+function updateThrowMetaDom() {
+  var metaEl = document.getElementById('session-meta');
+  if (!metaEl || !ACTIVE) return;
+  var a = ACTIVE, t = currentThrow();
+  var throwLabel = a.throws.length > 1 ? ' · throw ' + a.throws.length : '';
+  metaEl.textContent =
+    new Date(a.startedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) +
+    ' · ' + a.discIds.length + ' disc' + (a.discIds.length !== 1 ? 's' : '') + throwLabel + throwStyleLabel(t);
+}
+function toggleGpsHelp() {
+  var el = document.getElementById('gps-help-detail');
+  if (el) el.style.display = (el.style.display === 'none' ? 'block' : 'none');
 }
 function showStartError(msg) {
   var el = document.getElementById('start-error');
@@ -646,22 +797,50 @@ function doBeginSession() {
   var location = locEl.value.trim();
   if (ui.selectedDiscIds.size === 0) { showStartError('Select at least one disc.'); return; }
   if (location) addLocation(location);
+
   ACTIVE = {
     id: uid(), location: location, startedAt: Date.now(),
     discIds: Array.from(ui.selectedDiscIds),
-    throws: [{ start: null, recoveries: {}, odometerM: 0 }],
+    throws: [{ start: null, recoveries: {}, odometerM: 0, throwTypeChoice: null, throwTypeCustom: '', throwModifier: null }],
   };
   saveKey(KEYS.active, ACTIVE);
   ui.selectedDiscIds = new Set();
   ui.manualMode = !geoAvailable;
   ui.geoError = null; ui.watching = false; ui.lastPos = null;
-  renderMain();
+
+  if (geoAvailable) {
+    doLogStartGps();
+  } else {
+    renderMain();
+  }
 }
 
 /* ================================================================ */
 /*  Active session view                                               */
 /* ================================================================ */
 
+function throwStyleCardHtml(t) {
+  var typeChoice = t.throwTypeChoice;
+  var customVal = t.throwTypeCustom || '';
+  var typePills = ['Backhand', 'Forehand', 'Other'].map(function (v) {
+    var on = typeChoice === v;
+    return '<button type="button" class="rt-pill' + (on ? ' rt-pill-on' : '') + '" data-action="pick-throwtype" data-val="' + v + '">' +
+      '<span class="rt-radio-dot"></span><span>' + v + '</span></button>';
+  }).join('');
+  var otherInput = '<input class="rt-input" id="throwtype-other-input" placeholder="tomahawk" style="display:' +
+    (typeChoice === 'Other' ? 'block' : 'none') + ';margin-top:6px" value="' + escapeHtml(customVal) + '">';
+  var modPills = ['Hyzer', 'Anhyzer'].map(function (v) {
+    var on = t.throwModifier === v;
+    return '<button type="button" class="rt-pill' + (on ? ' rt-pill-on' : '') + '" data-action="pick-modifier" data-val="' + v + '">' +
+      '<span class="rt-radio-dot"></span><span>' + v + '</span></button>';
+  }).join('');
+  return '<div class="rt-card" style="gap:8px">' +
+    '<label class="rt-label">This throw <span class="rt-label-note">(optional)</span></label>' +
+    '<div class="rt-pill-row" id="throwtype-row">' + typePills + '</div>' +
+    otherInput +
+    '<div class="rt-pill-row" id="modifier-row" style="margin-top:2px">' + modPills + '</div>' +
+  '</div>';
+}
 function activeSessionHtml() {
   var a = ACTIVE;
   var t = currentThrow();
@@ -734,10 +913,11 @@ function activeSessionHtml() {
 
   var html = '<div class="rt-tab-content"><div class="rt-session-header"><div>' +
     '<div class="rt-session-loc">' + icon('mappin', 15) + ' ' + escapeHtml(a.location || 'Untitled session') + '</div>' +
-    '<div class="rt-session-meta rt-mono">' +
-      new Date(a.startedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) +
-      ' · ' + a.discIds.length + ' disc' + (a.discIds.length !== 1 ? 's' : '') + throwLabel + '</div></div></div>';
+    '<div class="rt-session-meta rt-mono" id="session-meta">' +
+      escapeHtml(new Date(a.startedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) +
+      ' · ' + a.discIds.length + ' disc' + (a.discIds.length !== 1 ? 's' : '') + throwLabel + throwStyleLabel(t)) + '</div></div></div>';
 
+  html += throwStyleCardHtml(t);
   html += startBlock;
   if (t.start) {
     html += rangefinder;
@@ -766,12 +946,14 @@ function activeSessionHtml() {
 }
 
 function doLogStartGps() {
+  if (!geoAvailable) { ui.manualMode = true; renderMain(); return; }
   ui.geoError = null; ui.acquiring = true; renderMain();
   getPosition({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }).then(function (pos) {
     var t = currentThrow();
     t.start = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, at: Date.now(), method: 'gps' };
     saveKey(KEYS.active, ACTIVE);
     ui.acquiring = false;
+    startTracking();
     renderMain();
   }).catch(function (err) {
     ui.geoError = (err && (err.message || err.code)) ? (err.message || ('Error code ' + err.code)) : "Couldn't get a GPS fix.";
@@ -853,10 +1035,20 @@ function doUndoRecovery(id) {
 }
 function doNextThrow() {
   stopTracking();
-  ACTIVE.throws.push({ start: null, recoveries: {}, odometerM: 0 });
+  var prev = currentThrow();
+  ACTIVE.throws.push({
+    start: null, recoveries: {}, odometerM: 0,
+    throwTypeChoice: prev.throwTypeChoice || null,
+    throwTypeCustom: prev.throwTypeCustom || '',
+    throwModifier: prev.throwModifier || null,
+  });
   saveKey(KEYS.active, ACTIVE);
   ui.lastPos = null; ui.geoError = null; ui.manualDistFor = null;
-  renderMain();
+  if (geoAvailable && !ui.manualMode) {
+    doLogStartGps();
+  } else {
+    renderMain();
+  }
 }
 function doEndSession() {
   stopTracking();
@@ -909,7 +1101,10 @@ function historyTabHtml() {
             '<div class="rt-list-main"><div class="rt-list-title">' + (d ? escapeHtml(d.brand) : 'Unknown disc') + '</div></div>' +
             '<div class="rt-mono rt-list-sub">' + (r ? fmtDist(r.distanceM, UNIT) : 'not recovered') + '</div></li>';
         }).join('');
-        var label = throwCount > 1 ? '<div class="rt-throw-label">Throw ' + (i + 1) + '</div>' : '';
+        var tStyle = throwStyleLabel(t);
+        var label = (throwCount > 1 || tStyle)
+          ? '<div class="rt-throw-label">' + (throwCount > 1 ? ('Throw ' + (i + 1)) : 'Throw') + escapeHtml(tStyle) + '</div>'
+          : '';
         return label + '<ul class="rt-list rt-history-detail">' + throwRows + '</ul>';
       }).join('');
     }
@@ -1026,8 +1221,12 @@ function handleClick(e) {
     case 'remove-disc-ask': ui.confirmDeleteId = id; renderMain(); break;
     case 'remove-disc-confirm': doRemoveDisc(id); break;
     case 'remove-disc-cancel': ui.confirmDeleteId = null; renderMain(); break;
+    case 'toggle-disc-stats': ui.openDiscStatsId = (ui.openDiscStatsId === id ? null : id); renderMain(); break;
     case 'toggle-select-disc': doToggleSelectDisc(id, btn); break;
     case 'pick-location': doPickLocation(btn.dataset.loc, btn); break;
+    case 'pick-throwtype': doPickThrowTypeLive(btn.dataset.val, btn); break;
+    case 'pick-modifier': doPickModifierLive(btn.dataset.val, btn); break;
+    case 'toggle-gps-help': toggleGpsHelp(); break;
     case 'begin-session': doBeginSession(); break;
     case 'log-start-gps': doLogStartGps(); break;
     case 'enable-manual-mode': ui.manualMode = true; renderMain(); break;
@@ -1067,6 +1266,9 @@ function boot() {
   renderMain();
   var app = document.getElementById('app');
   app.addEventListener('click', handleClick);
+  app.addEventListener('input', function (e) {
+    if (e.target && e.target.id === 'throwtype-other-input') onThrowTypeOtherInput(e);
+  });
   app.addEventListener('pointerdown', swipePointerDown);
   app.addEventListener('pointermove', swipePointerMove);
   app.addEventListener('pointerup', swipePointerUp);
