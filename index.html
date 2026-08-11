@@ -105,6 +105,7 @@
     letter-spacing: 0.05em;
     color: var(--muted);
   }
+  .rt-label-note { text-transform: none; font-weight: 500; letter-spacing: 0; }
   .rt-input {
     border: 1.5px solid var(--line);
     border-radius: 9px;
@@ -229,6 +230,21 @@
   }
   .rt-select-check { position: absolute; top: 6px; right: 6px; color: var(--fairway); }
 
+  .rt-loc-pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .rt-loc-pill {
+    border: 1.5px solid var(--line); border-radius: 999px; padding: 7px 13px 7px 10px;
+    background: var(--paper); font-size: 12.5px; font-weight: 600; color: var(--ink);
+    cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+    font-family: 'Inter', sans-serif; max-width: 100%;
+  }
+  .rt-loc-pill span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rt-loc-pill-on { border-color: var(--fairway); background: #E7F0E3; color: var(--fairway-dark); }
+  .rt-radio-dot {
+    width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--muted);
+    display: inline-block; flex-shrink: 0; box-sizing: border-box;
+  }
+  .rt-loc-pill-on .rt-radio-dot { border-color: var(--fairway); background: var(--fairway); box-shadow: inset 0 0 0 2px #fff; }
+
   .rt-session-header { padding-bottom: 2px; }
   .rt-session-loc {
     font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 17px;
@@ -273,10 +289,24 @@
     font-size: 11.5px; color: #7FB6D6; margin-top: 8px;
   }
 
-  .rt-history-card { background: #fff; border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+  .rt-throw-label {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--muted); padding: 10px 2px 4px;
+  }
+
+  .rt-history-item { position: relative; overflow: hidden; border-radius: 11px; }
+  .rt-swipe-actions { position: absolute; inset: 0; display: flex; justify-content: flex-end; }
+  .rt-swipe-delete-btn {
+    width: 84px; border: none; background: var(--flag); color: #fff; font-weight: 600; font-size: 12px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer;
+  }
+  .rt-swipe-content {
+    position: relative; background: #fff; border: 1px solid var(--line); border-radius: 11px;
+    overflow: hidden; touch-action: pan-y;
+  }
   .rt-history-summary {
     width: 100%; display: flex; align-items: center; justify-content: space-between;
-    background: none; border: none; cursor: pointer; padding: 12px;
+    background: #fff; border: none; cursor: pointer; padding: 12px;
     text-align: left; color: var(--ink);
   }
   .rt-history-detail { padding: 0 10px 10px; }
@@ -312,6 +342,7 @@ var KEYS = {
   sessions: "retrieve:sessions",
   active: "retrieve:active-session",
   prefs: "retrieve:prefs",
+  locations: "retrieve:locations",
 };
 
 function loadKey(key, fallback) {
@@ -421,6 +452,7 @@ function emptyState(iconHtml, title, body) {
 var DISCS = [];
 var SESSIONS = [];
 var ACTIVE = null;
+var LOCATIONS = [];
 var UNIT = "ft";
 var TAB = "bag";
 var watchId = null;
@@ -438,6 +470,36 @@ var ui = {
   addFormColor: DISC_COLORS[4].hex,
   openHistoryId: null,
 };
+
+var swipe = { active: false, id: null, el: null, startX: 0, startY: 0, baseX: 0, dx: 0, locked: null, openId: null, wasDrag: false };
+
+/* ================================================================ */
+/*  Data migration (old single-throw sessions -> throws[] array)    */
+/* ================================================================ */
+
+function migrateSession(s) {
+  if (!s) return s;
+  if (s.throws) return s;
+  return {
+    id: s.id, location: s.location, startedAt: s.startedAt, discIds: s.discIds,
+    throws: [{ start: s.start || null, recoveries: s.recoveries || {}, odometerM: s.odometerM || 0 }],
+  };
+}
+function currentThrow() { return ACTIVE.throws[ACTIVE.throws.length - 1]; }
+
+/* ================================================================ */
+/*  Saved locations (up to 4, most-recently-used)                    */
+/* ================================================================ */
+
+function addLocation(name) {
+  name = name.trim();
+  if (!name) return;
+  var idx = LOCATIONS.findIndex(function (l) { return l.toLowerCase() === name.toLowerCase(); });
+  if (idx !== -1) LOCATIONS.splice(idx, 1);
+  LOCATIONS.unshift(name);
+  if (LOCATIONS.length > 4) LOCATIONS = LOCATIONS.slice(0, 4);
+  saveKey(KEYS.locations, LOCATIONS);
+}
 
 /* ================================================================ */
 /*  Bag tab                                                           */
@@ -539,8 +601,16 @@ function startSessionHtml() {
 
   var count = ui.selectedDiscIds.size > 0 ? ' (' + ui.selectedDiscIds.size + ')' : '';
 
+  var locPills = LOCATIONS.length > 0
+    ? '<div class="rt-loc-pill-row" id="loc-pill-row">' + LOCATIONS.map(function (loc) {
+        return '<button type="button" class="rt-loc-pill" data-action="pick-location" data-loc="' + escapeHtml(loc) + '">' +
+          '<span class="rt-radio-dot"></span><span>' + escapeHtml(loc) + '</span></button>';
+      }).join('') + '</div>'
+    : '';
+
   return '<div class="rt-tab-content"><div class="rt-card">' +
-    '<div class="rt-field"><label class="rt-label">Course / field</label>' +
+    '<div class="rt-field"><label class="rt-label">Course / field <span class="rt-label-note">(optional)</span></label>' +
+      locPills +
       '<input class="rt-input" id="start-location" placeholder="e.g. Riverside DGC, hole 7 tee"></div>' +
     '<div class="rt-field"><label class="rt-label">Discs to throw <span class="rt-mono" id="sel-count">' + count + '</span></label>' +
       discsBlock + '</div>' +
@@ -559,6 +629,12 @@ function doToggleSelectDisc(id, btnEl) {
   var countEl = document.getElementById('sel-count');
   if (countEl) countEl.textContent = ui.selectedDiscIds.size > 0 ? ' (' + ui.selectedDiscIds.size + ')' : '';
 }
+function doPickLocation(loc, btnEl) {
+  var input = document.getElementById('start-location');
+  if (input) input.value = loc;
+  document.querySelectorAll('#loc-pill-row .rt-loc-pill').forEach(function (b) { b.classList.remove('rt-loc-pill-on'); });
+  btnEl.classList.add('rt-loc-pill-on');
+}
 function showStartError(msg) {
   var el = document.getElementById('start-error');
   if (!el) return;
@@ -568,11 +644,12 @@ function showStartError(msg) {
 function doBeginSession() {
   var locEl = document.getElementById('start-location');
   var location = locEl.value.trim();
-  if (!location) { showStartError('Enter a course or field name.'); locEl.focus(); return; }
   if (ui.selectedDiscIds.size === 0) { showStartError('Select at least one disc.'); return; }
+  if (location) addLocation(location);
   ACTIVE = {
     id: uid(), location: location, startedAt: Date.now(),
-    discIds: Array.from(ui.selectedDiscIds), start: null, recoveries: {}, odometerM: 0,
+    discIds: Array.from(ui.selectedDiscIds),
+    throws: [{ start: null, recoveries: {}, odometerM: 0 }],
   };
   saveKey(KEYS.active, ACTIVE);
   ui.selectedDiscIds = new Set();
@@ -587,13 +664,14 @@ function doBeginSession() {
 
 function activeSessionHtml() {
   var a = ACTIVE;
-  var outstanding = a.discIds.filter(function (id) { return !a.recoveries[id]; });
-  var recovered = a.discIds.filter(function (id) { return a.recoveries[id]; });
+  var t = currentThrow();
+  var outstanding = a.discIds.filter(function (id) { return !t.recoveries[id]; });
+  var recovered = a.discIds.filter(function (id) { return t.recoveries[id]; });
   var accColor = !ui.lastPos ? 'gray' : ui.lastPos.accuracy < 10 ? 'good' : ui.lastPos.accuracy < 30 ? 'ok' : 'poor';
-  var live = (a.start && a.start.method === 'gps' && ui.lastPos) ? haversine(a.start, ui.lastPos) : null;
+  var live = (t.start && t.start.method === 'gps' && ui.lastPos) ? haversine(t.start, ui.lastPos) : null;
 
   var startBlock = '';
-  if (!a.start) {
+  if (!t.start) {
     startBlock = '<div class="rt-card"><p class="rt-empty-body" style="padding:0 0 12px">' +
       "Log where you're throwing from before you send your discs.</p>";
     if (!ui.manualMode) {
@@ -603,21 +681,25 @@ function activeSessionHtml() {
       if (ui.geoError) startBlock += '<p class="rt-error">' + icon('alert', 14) + ' ' + escapeHtml(ui.geoError) + '</p>';
       startBlock += '<button class="rt-link-btn" data-action="enable-manual-mode">Enter without GPS instead</button>';
     } else {
-      startBlock += '<p class="rt-note">' + icon('alert', 14) +
-        " Location services aren't available on this device/browser. You can still run the session — you'll enter each recovery distance by hand.</p>" +
-        '<button class="rt-btn rt-btn-flag" data-action="log-start-manual">' + icon('flag', 16) + ' Mark throw point &amp; continue</button>';
+      var noteText = geoAvailable
+        ? "Skipping GPS for this throw — you'll enter each recovery distance by hand."
+        : "This browser doesn't expose location access here. You can still run the session — you'll enter each recovery distance by hand.";
+      startBlock += '<p class="rt-note">' + icon('alert', 14) + ' ' + noteText + '</p>';
+      if (ui.geoError) startBlock += '<p class="rt-error">' + icon('alert', 14) + ' Last GPS error: ' + escapeHtml(ui.geoError) + '</p>';
+      startBlock += '<button class="rt-btn rt-btn-flag" data-action="log-start-manual">' + icon('flag', 16) + ' Mark throw point &amp; continue</button>';
+      if (geoAvailable) startBlock += '<button class="rt-link-btn" data-action="disable-manual-mode">Try GPS instead</button>';
     }
     startBlock += '</div>';
   }
 
   var rangefinder = '';
-  if (a.start && a.start.method === 'gps') {
+  if (t.start && t.start.method === 'gps') {
     rangefinder = '<div class="rt-rangefinder">' +
       '<div class="rt-rf-row"><span class="rt-rf-label"><span class="rt-dot rt-dot-' + accColor + '" id="acc-dot"></span> distance from throw point</span>' +
       '<button class="rt-btn-sm rt-btn-sky" data-action="toggle-tracking">' + (ui.watching ? 'Stop tracking' : 'Start tracking') + '</button></div>' +
       '<div class="rt-rf-number" id="rf-number">' + (live != null ? Math.round(convert(live, UNIT)) : '—') +
       '<span class="rt-rf-unit">' + UNIT + '</span></div>' +
-      '<div class="rt-rf-sub rt-mono" id="rf-sub">' + icon('route', 12) + ' walked ' + fmtDist(a.odometerM || 0, UNIT) +
+      '<div class="rt-rf-sub rt-mono" id="rf-sub">' + icon('route', 12) + ' walked ' + fmtDist(t.odometerM || 0, UNIT) +
       (ui.lastPos ? ' · ' + icon('clock', 12) + ' ±' + Math.round(ui.lastPos.accuracy) + 'm' : '') + '</div>';
     if (ui.geoError) rangefinder += '<p class="rt-error" style="margin-top:8px">' + icon('alert', 14) + ' ' + escapeHtml(ui.geoError) + '</p>';
     rangefinder += '</div>';
@@ -637,25 +719,27 @@ function activeSessionHtml() {
       escapeHtml(d.brand) + '</div></div><button class="rt-btn-sm rt-btn-turf" data-action="mark-found" data-id="' + id + '">Mark found</button></li>';
   }).join('');
 
-  var recRows = recovered.slice().sort(function (x, y) { return a.recoveries[y].distanceM - a.recoveries[x].distanceM; })
+  var recRows = recovered.slice().sort(function (x, y) { return t.recoveries[y].distanceM - t.recoveries[x].distanceM; })
     .map(function (id) {
       var d = DISCS.find(function (x) { return x.id === id; });
       if (!d) return '';
-      var r = a.recoveries[id];
+      var r = t.recoveries[id];
       return '<li class="rt-list-row">' + discChip(d.color) + '<div class="rt-list-main"><div class="rt-list-title">' +
         escapeHtml(d.brand) + '</div><div class="rt-list-sub rt-mono">' + fmtDist(r.distanceM, UNIT) +
         (r.method === 'manual' ? ' · manual' : '') + '</div></div>' +
         '<button class="rt-icon-btn" data-action="undo-recovery" data-id="' + id + '" title="Undo">' + icon('rotate', 15) + '</button></li>';
     }).join('');
 
+  var throwLabel = a.throws.length > 1 ? ' · throw ' + a.throws.length : '';
+
   var html = '<div class="rt-tab-content"><div class="rt-session-header"><div>' +
-    '<div class="rt-session-loc">' + icon('mappin', 15) + ' ' + escapeHtml(a.location) + '</div>' +
+    '<div class="rt-session-loc">' + icon('mappin', 15) + ' ' + escapeHtml(a.location || 'Untitled session') + '</div>' +
     '<div class="rt-session-meta rt-mono">' +
       new Date(a.startedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) +
-      ' · ' + a.discIds.length + ' disc' + (a.discIds.length !== 1 ? 's' : '') + '</div></div></div>';
+      ' · ' + a.discIds.length + ' disc' + (a.discIds.length !== 1 ? 's' : '') + throwLabel + '</div></div></div>';
 
   html += startBlock;
-  if (a.start) {
+  if (t.start) {
     html += rangefinder;
     html += '<div class="rt-section-header"><span>Still out (' + outstanding.length + ')</span></div>';
     html += outstanding.length === 0
@@ -667,7 +751,11 @@ function activeSessionHtml() {
     }
   }
 
-  html += '<div class="rt-session-actions"><button class="rt-btn rt-btn-fairway" data-action="end-session">End session</button>';
+  html += '<div class="rt-session-actions">';
+  if (t.start && outstanding.length === 0) {
+    html += '<button class="rt-btn rt-btn-turf" data-action="next-throw">' + icon('rotate', 16) + ' Next throw — same discs</button>';
+  }
+  html += '<button class="rt-btn rt-btn-fairway" data-action="end-session">End session</button>';
   html += ui.cancelConfirm
     ? '<div class="rt-confirm-row" style="justify-content:center"><span class="rt-empty-body" style="padding:0">Discard this session?</span>' +
       '<button class="rt-btn-sm rt-btn-flag" data-action="confirm-cancel-session">Discard</button>' +
@@ -680,18 +768,20 @@ function activeSessionHtml() {
 function doLogStartGps() {
   ui.geoError = null; ui.acquiring = true; renderMain();
   getPosition({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }).then(function (pos) {
-    ACTIVE.start = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, at: Date.now(), method: 'gps' };
+    var t = currentThrow();
+    t.start = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, at: Date.now(), method: 'gps' };
     saveKey(KEYS.active, ACTIVE);
     ui.acquiring = false;
     renderMain();
   }).catch(function (err) {
-    ui.geoError = err.message || "Couldn't get a GPS fix.";
-    ui.manualMode = true; ui.acquiring = false;
+    ui.geoError = (err && (err.message || err.code)) ? (err.message || ('Error code ' + err.code)) : "Couldn't get a GPS fix.";
+    ui.acquiring = false;
     renderMain();
   });
 }
 function doLogStartManual() {
-  ACTIVE.start = { at: Date.now(), method: 'manual' };
+  var t = currentThrow();
+  t.start = { at: Date.now(), method: 'manual' };
   saveKey(KEYS.active, ACTIVE);
   renderMain();
 }
@@ -699,10 +789,11 @@ function startTracking() {
   if (!geoAvailable) return;
   ui.watching = true;
   watchId = navigator.geolocation.watchPosition(function (pos) {
+    var t = currentThrow();
     var next = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
     if (ui.lastPos && pos.coords.accuracy < 30) {
       var d = haversine(ui.lastPos, next);
-      if (d > 2) { ACTIVE.odometerM = (ACTIVE.odometerM || 0) + d; saveKey(KEYS.active, ACTIVE); }
+      if (d > 2) { t.odometerM = (t.odometerM || 0) + d; saveKey(KEYS.active, ACTIVE); }
     }
     ui.lastPos = next; ui.geoError = null;
     updateRangefinderDom();
@@ -717,13 +808,13 @@ function stopTracking() {
 }
 function updateRangefinderDom() {
   var numEl = document.getElementById('rf-number');
-  if (!numEl) return;
-  var a = ACTIVE;
-  var live = (a.start && a.start.method === 'gps' && ui.lastPos) ? haversine(a.start, ui.lastPos) : null;
+  if (!numEl || !ACTIVE) return;
+  var t = currentThrow();
+  var live = (t.start && t.start.method === 'gps' && ui.lastPos) ? haversine(t.start, ui.lastPos) : null;
   numEl.innerHTML = (live != null ? Math.round(convert(live, UNIT)) : '—') + '<span class="rt-rf-unit">' + UNIT + '</span>';
   var subEl = document.getElementById('rf-sub');
   if (subEl) {
-    subEl.innerHTML = icon('route', 12) + ' walked ' + fmtDist(a.odometerM || 0, UNIT) +
+    subEl.innerHTML = icon('route', 12) + ' walked ' + fmtDist(t.odometerM || 0, UNIT) +
       (ui.lastPos ? ' · ' + icon('clock', 12) + ' ±' + Math.round(ui.lastPos.accuracy) + 'm' : '');
   }
   var dotEl = document.getElementById('acc-dot');
@@ -733,11 +824,11 @@ function updateRangefinderDom() {
   }
 }
 function doMarkFound(id) {
-  var a = ACTIVE;
-  var live = (a.start.method === 'gps' && ui.lastPos) ? haversine(a.start, ui.lastPos) : null;
+  var t = currentThrow();
+  var live = (t.start.method === 'gps' && ui.lastPos) ? haversine(t.start, ui.lastPos) : null;
   if (live != null) {
-    a.recoveries[id] = { distanceM: live, at: Date.now(), method: 'gps', accuracy: ui.lastPos.accuracy };
-    saveKey(KEYS.active, a);
+    t.recoveries[id] = { distanceM: live, at: Date.now(), method: 'gps', accuracy: ui.lastPos.accuracy };
+    saveKey(KEYS.active, ACTIVE);
     renderMain();
   } else {
     ui.manualDistFor = id;
@@ -748,14 +839,23 @@ function doConfirmManualDist(id) {
   var input = document.getElementById('manual-dist-input');
   var m = unitToMeters(input.value, UNIT);
   if (m == null) { input.focus(); return; }
-  ACTIVE.recoveries[id] = { distanceM: m, at: Date.now(), method: 'manual' };
+  var t = currentThrow();
+  t.recoveries[id] = { distanceM: m, at: Date.now(), method: 'manual' };
   saveKey(KEYS.active, ACTIVE);
   ui.manualDistFor = null;
   renderMain();
 }
 function doUndoRecovery(id) {
-  delete ACTIVE.recoveries[id];
+  var t = currentThrow();
+  delete t.recoveries[id];
   saveKey(KEYS.active, ACTIVE);
+  renderMain();
+}
+function doNextThrow() {
+  stopTracking();
+  ACTIVE.throws.push({ start: null, recoveries: {}, odometerM: 0 });
+  saveKey(KEYS.active, ACTIVE);
+  ui.lastPos = null; ui.geoError = null; ui.manualDistFor = null;
   renderMain();
 }
 function doEndSession() {
@@ -779,37 +879,110 @@ function doCancelSession() {
 /* ================================================================ */
 
 function historyTabHtml() {
+  swipe.openId = null;
   if (SESSIONS.length === 0) {
     return '<div class="rt-tab-content">' +
       emptyState(icon('clock', 28), 'No sessions yet', 'Finished sessions from the Throw tab will show up here.') + '</div>';
   }
   var sorted = SESSIONS.slice().sort(function (a, b) { return b.startedAt - a.startedAt; });
   var rows = sorted.map(function (s) {
-    var dists = Object.keys(s.recoveries || {}).map(function (k) { return s.recoveries[k].distanceM; });
-    var avg = dists.length ? dists.reduce(function (a, b) { return a + b; }, 0) / dists.length : null;
+    var throwsArr = s.throws || [];
+    var allDists = [];
+    throwsArr.forEach(function (t) {
+      Object.keys(t.recoveries || {}).forEach(function (k) { allDists.push(t.recoveries[k].distanceM); });
+    });
+    var avg = allDists.length ? allDists.reduce(function (x, y) { return x + y; }, 0) / allDists.length : null;
     var isOpen = ui.openHistoryId === s.id;
+    var throwCount = throwsArr.length;
+
     var detail = '';
     if (isOpen) {
-      detail = '<ul class="rt-list rt-history-detail">' + s.discIds.slice().sort(function (a, b) {
-        var ra = (s.recoveries && s.recoveries[a]) ? s.recoveries[a].distanceM : -1;
-        var rb = (s.recoveries && s.recoveries[b]) ? s.recoveries[b].distanceM : -1;
-        return rb - ra;
-      }).map(function (id) {
-        var d = DISCS.find(function (x) { return x.id === id; });
-        var r = s.recoveries ? s.recoveries[id] : null;
-        return '<li class="rt-list-row">' + discChip(d ? d.color : '#999', 22) +
-          '<div class="rt-list-main"><div class="rt-list-title">' + (d ? escapeHtml(d.brand) : 'Unknown disc') + '</div></div>' +
-          '<div class="rt-mono rt-list-sub">' + (r ? fmtDist(r.distanceM, UNIT) : 'not recovered') + '</div></li>';
-      }).join('') + '</ul>';
+      detail = throwsArr.map(function (t, i) {
+        var throwRows = s.discIds.slice().sort(function (a, b) {
+          var ra = (t.recoveries && t.recoveries[a]) ? t.recoveries[a].distanceM : -1;
+          var rb = (t.recoveries && t.recoveries[b]) ? t.recoveries[b].distanceM : -1;
+          return rb - ra;
+        }).map(function (id) {
+          var d = DISCS.find(function (x) { return x.id === id; });
+          var r = t.recoveries ? t.recoveries[id] : null;
+          return '<li class="rt-list-row">' + discChip(d ? d.color : '#999', 22) +
+            '<div class="rt-list-main"><div class="rt-list-title">' + (d ? escapeHtml(d.brand) : 'Unknown disc') + '</div></div>' +
+            '<div class="rt-mono rt-list-sub">' + (r ? fmtDist(r.distanceM, UNIT) : 'not recovered') + '</div></li>';
+        }).join('');
+        var label = throwCount > 1 ? '<div class="rt-throw-label">Throw ' + (i + 1) + '</div>' : '';
+        return label + '<ul class="rt-list rt-history-detail">' + throwRows + '</ul>';
+      }).join('');
     }
-    return '<li class="rt-history-card"><button class="rt-history-summary" data-action="toggle-history" data-id="' + s.id + '">' +
-      '<div><div class="rt-list-title">' + escapeHtml(s.location) + '</div><div class="rt-list-sub rt-mono">' +
-      new Date(s.startedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) +
-      ' · ' + s.discIds.length + ' disc' + (s.discIds.length !== 1 ? 's' : '') +
-      (avg != null ? ' · avg ' + fmtDist(avg, UNIT) : '') + '</div></div>' +
-      (isOpen ? icon('chevronup', 18) : icon('chevrondown', 18)) + '</button>' + detail + '</li>';
+
+    return '<li class="rt-history-item">' +
+      '<div class="rt-swipe-actions"><button class="rt-swipe-delete-btn" data-action="delete-session" data-id="' + s.id + '">' +
+        icon('trash', 18) + '<span>Delete</span></button></div>' +
+      '<div class="rt-swipe-content" data-id="' + s.id + '">' +
+        '<button class="rt-history-summary" data-action="toggle-history" data-id="' + s.id + '">' +
+        '<div><div class="rt-list-title">' + escapeHtml(s.location || 'Untitled session') + '</div><div class="rt-list-sub rt-mono">' +
+        new Date(s.startedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) +
+        ' · ' + s.discIds.length + ' disc' + (s.discIds.length !== 1 ? 's' : '') +
+        (throwCount > 1 ? ' · ' + throwCount + ' throws' : '') +
+        (avg != null ? ' · avg ' + fmtDist(avg, UNIT) : '') + '</div></div>' +
+        (isOpen ? icon('chevronup', 18) : icon('chevrondown', 18)) + '</button>' + detail +
+      '</div>' +
+    '</li>';
   }).join('');
-  return '<div class="rt-tab-content"><ul class="rt-list">' + rows + '</ul></div>';
+  return '<div class="rt-tab-content"><p class="rt-empty-body" style="padding:0 2px">Swipe a session left to delete.</p>' +
+    '<ul class="rt-list" id="history-list">' + rows + '</ul></div>';
+}
+function doDeleteSession(id) {
+  SESSIONS = SESSIONS.filter(function (s) { return s.id !== id; });
+  saveKey(KEYS.sessions, SESSIONS);
+  if (ui.openHistoryId === id) ui.openHistoryId = null;
+  renderMain();
+}
+
+/* ================================================================ */
+/*  Swipe-to-delete (history rows)                                    */
+/* ================================================================ */
+
+function swipePointerDown(e) {
+  var content = e.target.closest('.rt-swipe-content');
+  if (!content) return;
+  swipe.active = true;
+  swipe.id = content.dataset.id;
+  swipe.el = content;
+  swipe.startX = e.clientX; swipe.startY = e.clientY;
+  swipe.baseX = (swipe.openId === swipe.id) ? -84 : 0;
+  swipe.dx = swipe.baseX;
+  swipe.locked = null;
+  swipe.wasDrag = false;
+  content.style.transition = 'none';
+  try { content.setPointerCapture(e.pointerId); } catch (err) {}
+}
+function swipePointerMove(e) {
+  if (!swipe.active) return;
+  var dx = e.clientX - swipe.startX;
+  var dy = e.clientY - swipe.startY;
+  if (swipe.locked === null) {
+    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) swipe.locked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+  }
+  if (swipe.locked !== 'x') return;
+  swipe.wasDrag = true;
+  var pos = Math.max(-84, Math.min(0, swipe.baseX + dx));
+  swipe.dx = pos;
+  swipe.el.style.transform = 'translateX(' + pos + 'px)';
+}
+function swipePointerUp() {
+  if (!swipe.active) return;
+  swipe.active = false;
+  if (swipe.el) {
+    swipe.el.style.transition = '';
+    if (swipe.dx < -40) {
+      swipe.el.style.transform = 'translateX(-84px)';
+      swipe.openId = swipe.id;
+    } else {
+      swipe.el.style.transform = 'translateX(0)';
+      if (swipe.openId === swipe.id) swipe.openId = null;
+    }
+  }
+  swipe.locked = null;
 }
 
 /* ================================================================ */
@@ -842,6 +1015,7 @@ function buildShell() {
 }
 
 function handleClick(e) {
+  if (swipe.wasDrag) { swipe.wasDrag = false; return; }
   var btn = e.target.closest('[data-action]');
   if (!btn) return;
   var action = btn.dataset.action, id = btn.dataset.id;
@@ -853,20 +1027,24 @@ function handleClick(e) {
     case 'remove-disc-confirm': doRemoveDisc(id); break;
     case 'remove-disc-cancel': ui.confirmDeleteId = null; renderMain(); break;
     case 'toggle-select-disc': doToggleSelectDisc(id, btn); break;
+    case 'pick-location': doPickLocation(btn.dataset.loc, btn); break;
     case 'begin-session': doBeginSession(); break;
     case 'log-start-gps': doLogStartGps(); break;
     case 'enable-manual-mode': ui.manualMode = true; renderMain(); break;
+    case 'disable-manual-mode': ui.manualMode = false; ui.geoError = null; renderMain(); break;
     case 'log-start-manual': doLogStartManual(); break;
     case 'toggle-tracking': if (ui.watching) stopTracking(); else startTracking(); renderMain(); break;
     case 'mark-found': doMarkFound(id); break;
     case 'confirm-manual-dist': doConfirmManualDist(id); break;
     case 'cancel-manual-dist': ui.manualDistFor = null; renderMain(); break;
     case 'undo-recovery': doUndoRecovery(id); break;
+    case 'next-throw': doNextThrow(); break;
     case 'end-session': doEndSession(); break;
     case 'ask-cancel-session': ui.cancelConfirm = true; renderMain(); break;
     case 'keep-going': ui.cancelConfirm = false; renderMain(); break;
     case 'confirm-cancel-session': doCancelSession(); break;
     case 'toggle-history': ui.openHistoryId = (ui.openHistoryId === id ? null : id); renderMain(); break;
+    case 'delete-session': doDeleteSession(id); break;
     case 'toggle-unit':
       UNIT = UNIT === 'ft' ? 'm' : 'ft';
       saveKey(KEYS.prefs, { unit: UNIT });
@@ -878,14 +1056,21 @@ function handleClick(e) {
 
 function boot() {
   DISCS = loadKey(KEYS.discs, []);
-  SESSIONS = loadKey(KEYS.sessions, []);
-  ACTIVE = loadKey(KEYS.active, null);
+  SESSIONS = loadKey(KEYS.sessions, []).map(migrateSession);
+  var rawActive = loadKey(KEYS.active, null);
+  ACTIVE = rawActive ? migrateSession(rawActive) : null;
+  LOCATIONS = loadKey(KEYS.locations, []);
   UNIT = (loadKey(KEYS.prefs, { unit: 'ft' }) || {}).unit || 'ft';
   TAB = ACTIVE ? 'throw' : 'bag';
   buildShell();
   renderTabbar();
   renderMain();
-  document.getElementById('app').addEventListener('click', handleClick);
+  var app = document.getElementById('app');
+  app.addEventListener('click', handleClick);
+  app.addEventListener('pointerdown', swipePointerDown);
+  app.addEventListener('pointermove', swipePointerMove);
+  app.addEventListener('pointerup', swipePointerUp);
+  app.addEventListener('pointercancel', swipePointerUp);
 }
 
 document.addEventListener('DOMContentLoaded', boot);
