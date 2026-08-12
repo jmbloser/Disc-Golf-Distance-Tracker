@@ -6,8 +6,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Send It">
 <meta name="theme-color" content="#2E5233">
-<title>Retrieve — Disc Golf Drive Log</title>
+<title>Send It — Disc Golf Drive Log</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
@@ -48,7 +49,7 @@
 
   .rt-topbar {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 18px 16px 14px;
+    padding: calc(18px + env(safe-area-inset-top)) 16px 14px;
     border-bottom: 2px solid var(--fairway);
     background: var(--paper);
   }
@@ -314,6 +315,8 @@
     display: flex; align-items: center; gap: 6px; color: var(--fairway-dark);
   }
   .rt-session-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .rt-title-edit-row { display: flex; align-items: center; gap: 6px; width: 100%; }
+  .rt-title-edit-row .rt-input { font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 16px; }
 
   .rt-history-item { position: relative; overflow: hidden; border-radius: 11px; }
   .rt-swipe-actions { position: absolute; inset: 0; display: flex; justify-content: flex-end; }
@@ -430,6 +433,7 @@ var ICON_PATHS = {
   discicon: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2"/>',
   navigation: '<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
   clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  pencil: '<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>',
   plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
   trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
   mappin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/>',
@@ -455,6 +459,15 @@ function discChip(hex, size) {
   return '<span class="rt-disc-chip" style="width:' + size + 'px;height:' + size +
     'px;background:radial-gradient(circle at 35% 30%, ' + hex + 'ee, ' + hex +
     ')"><span class="rt-disc-chip-ring"></span></span>';
+}
+function discVisual(d, size) {
+  size = size || 28;
+  if (d && d.photo) {
+    return '<span class="rt-disc-chip" style="width:' + size + 'px;height:' + size + 'px;padding:0;overflow:hidden;background:var(--paper-2)">' +
+      '<img src="' + d.photo + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%" alt="">' +
+    '</span>';
+  }
+  return discChip((d && d.color) || DISC_COLORS[4].hex, size);
 }
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, function (c) {
@@ -491,6 +504,9 @@ var ui = {
   addFormColor: DISC_COLORS[4].hex,
   openHistoryId: null,
   openDiscStatsId: null,
+  addFormPhoto: null,
+  editingActiveTitle: false,
+  editingSessionTitleId: null,
 };
 
 var swipe = { active: false, id: null, el: null, startX: 0, startY: 0, baseX: 0, dx: 0, locked: null, openId: null, wasDrag: false };
@@ -601,13 +617,16 @@ function bagTabHtml() {
               c.hex + '" title="' + c.name + '">' + discChip(c.hex, 26) +
               (on ? '<span class="rt-color-selected-ring"></span>' : '') + '</button>';
           }).join('') +
-        '</div></div>' +
+        '</div>' +
+        '<div id="add-photo-row" style="display:flex;align-items:center;gap:10px;margin-top:2px">' + addPhotoRowHtml() + '</div>' +
+        '<input type="file" accept="image/*" capture="environment" id="add-photo-input" style="display:none">' +
+      '</div>' +
       '<button class="rt-btn rt-btn-flag" data-action="add-disc">' + icon('plus', 16) + ' Add to bag</button>' +
     '</div>';
 
   var rows = DISCS.slice().sort(function (a, b) { return b.addedAt - a.addedAt; }).map(function (d) {
     if (ui.confirmDeleteId === d.id) {
-      return '<li class="rt-list-row">' + discChip(d.color) +
+      return '<li class="rt-list-row">' + discVisual(d) +
         '<div class="rt-list-main"><div class="rt-list-title">' + escapeHtml(d.brand) + '</div></div>' +
         '<div class="rt-confirm-row">' +
           '<button class="rt-btn-sm rt-btn-flag" data-action="remove-disc-confirm" data-id="' + d.id + '">Remove</button>' +
@@ -617,7 +636,7 @@ function bagTabHtml() {
     var isOpen = ui.openDiscStatsId === d.id;
     var stats = discStats(d.id);
     var header = '<div class="rt-disc-row" data-action="toggle-disc-stats" data-id="' + d.id + '">' +
-      discChip(d.color) +
+      discVisual(d) +
       '<div class="rt-list-main"><div class="rt-list-title">' + escapeHtml(d.brand) + '</div>' +
         '<div class="rt-list-sub rt-mono">' + (d.weight ? d.weight + 'g' : 'weight —') +
         (stats ? ' · ' + stats.count + ' throw' + (stats.count !== 1 ? 's' : '') : '') + '</div></div>' +
@@ -654,9 +673,10 @@ function doAddDisc() {
   if (!brand) { brandEl.focus(); return; }
   var weight = weightEl.value ? parseInt(weightEl.value, 10) : null;
   var hex = hexEl.value.trim() ? hexEl.value.trim() : ui.addFormColor;
-  DISCS.push({ id: uid(), brand: brand, weight: weight, color: hex, addedAt: Date.now() });
+  DISCS.push({ id: uid(), brand: brand, weight: weight, color: hex, photo: ui.addFormPhoto || null, addedAt: Date.now() });
   saveKey(KEYS.discs, DISCS);
   ui.addFormColor = DISC_COLORS[4].hex;
+  ui.addFormPhoto = null;
   renderMain();
 }
 function doRemoveDisc(id) {
@@ -664,6 +684,56 @@ function doRemoveDisc(id) {
   saveKey(KEYS.discs, DISCS);
   ui.confirmDeleteId = null;
   renderMain();
+}
+
+/* ----- Photo capture for the add-disc form ----- */
+
+function addPhotoRowHtml() {
+  return ui.addFormPhoto
+    ? ('<img src="' + ui.addFormPhoto + '" style="width:40px;height:40px;border-radius:50%;object-fit:cover;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.15)">' +
+       '<button type="button" class="rt-link-btn" data-action="clear-add-photo">Remove photo</button>')
+    : '<button type="button" class="rt-link-btn" data-action="trigger-photo-capture">Or take a photo instead</button>';
+}
+function triggerPhotoCapture() {
+  var inp = document.getElementById('add-photo-input');
+  if (inp) inp.click();
+}
+function doClearAddPhoto() {
+  ui.addFormPhoto = null;
+  var row = document.getElementById('add-photo-row');
+  if (row) row.innerHTML = addPhotoRowHtml();
+}
+function processPhotoFile(file, callback) {
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    var img = new Image();
+    img.onload = function () {
+      var SIZE = 128;
+      var canvas = document.createElement('canvas');
+      canvas.width = SIZE; canvas.height = SIZE;
+      var ctx = canvas.getContext('2d');
+      var scale = Math.max(SIZE / img.width, SIZE / img.height);
+      var w = img.width * scale, h = img.height * scale;
+      ctx.drawImage(img, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
+      try { callback(canvas.toDataURL('image/jpeg', 0.6)); } catch (err) { callback(null); }
+    };
+    img.onerror = function () { callback(null); };
+    img.src = e.target.result;
+  };
+  reader.onerror = function () { callback(null); };
+  reader.readAsDataURL(file);
+}
+function onAddPhotoInputChange(e) {
+  var file = e.target.files && e.target.files[0];
+  if (!file) return;
+  processPhotoFile(file, function (dataUrl) {
+    if (dataUrl) {
+      ui.addFormPhoto = dataUrl;
+      var row = document.getElementById('add-photo-row');
+      if (row) row.innerHTML = addPhotoRowHtml();
+    }
+    e.target.value = '';
+  });
 }
 
 /* ================================================================ */
@@ -674,7 +744,7 @@ function startSessionHtml() {
   var options = DISCS.map(function (d) {
     var on = ui.selectedDiscIds.has(d.id);
     return '<button type="button" class="rt-select-item ' + (on ? 'rt-select-item-on' : '') +
-      '" data-action="toggle-select-disc" data-id="' + d.id + '">' + discChip(d.color, 24) +
+      '" data-action="toggle-select-disc" data-id="' + d.id + '">' + discVisual(d, 24) +
       '<span class="rt-select-item-label">' + escapeHtml(d.brand) + '</span>' +
       (on ? '<span class="rt-select-check">' + icon('check', 14) + '</span>' : '') + '</button>';
   }).join('');
@@ -888,13 +958,13 @@ function activeSessionHtml() {
     var d = DISCS.find(function (x) { return x.id === id; });
     if (!d) return '';
     if (ui.manualDistFor === id) {
-      return '<li class="rt-list-row">' + discChip(d.color) + '<div class="rt-list-main"><div class="rt-list-title">' +
+      return '<li class="rt-list-row">' + discVisual(d) + '<div class="rt-list-main"><div class="rt-list-title">' +
         escapeHtml(d.brand) + '</div></div><div class="rt-confirm-row">' +
         '<input autofocus class="rt-input rt-mono rt-input-sm" id="manual-dist-input" placeholder="' + UNIT + '">' +
         '<button class="rt-btn-sm rt-btn-flag" data-action="confirm-manual-dist" data-id="' + id + '">' + icon('check', 14) + '</button>' +
         '<button class="rt-btn-sm rt-btn-ghost" data-action="cancel-manual-dist">' + icon('x', 14) + '</button></div></li>';
     }
-    return '<li class="rt-list-row">' + discChip(d.color) + '<div class="rt-list-main"><div class="rt-list-title">' +
+    return '<li class="rt-list-row">' + discVisual(d) + '<div class="rt-list-main"><div class="rt-list-title">' +
       escapeHtml(d.brand) + '</div></div><button class="rt-btn-sm rt-btn-turf" data-action="mark-found" data-id="' + id + '">Mark found</button></li>';
   }).join('');
 
@@ -903,19 +973,27 @@ function activeSessionHtml() {
       var d = DISCS.find(function (x) { return x.id === id; });
       if (!d) return '';
       var r = t.recoveries[id];
-      return '<li class="rt-list-row">' + discChip(d.color) + '<div class="rt-list-main"><div class="rt-list-title">' +
+      return '<li class="rt-list-row">' + discVisual(d) + '<div class="rt-list-main"><div class="rt-list-title">' +
         escapeHtml(d.brand) + '</div><div class="rt-list-sub rt-mono">' + fmtDist(r.distanceM, UNIT) +
         (r.method === 'manual' ? ' · manual' : '') + '</div></div>' +
         '<button class="rt-icon-btn" data-action="undo-recovery" data-id="' + id + '" title="Undo">' + icon('rotate', 15) + '</button></li>';
     }).join('');
 
   var throwLabel = a.throws.length > 1 ? ' · throw ' + a.throws.length : '';
+  var titleBlock = ui.editingActiveTitle
+    ? '<div class="rt-session-header"><div class="rt-title-edit-row">' +
+        '<input class="rt-input" id="edit-active-title-input" value="' + escapeHtml(a.location || '') + '" placeholder="Untitled session">' +
+        '<button class="rt-icon-btn" data-action="save-active-title" title="Save">' + icon('check', 16) + '</button>' +
+        '<button class="rt-icon-btn" data-action="cancel-active-title" title="Cancel">' + icon('x', 16) + '</button>' +
+      '</div></div>'
+    : '<div class="rt-session-header"><div>' +
+        '<div class="rt-session-loc">' + icon('mappin', 15) + ' <span>' + escapeHtml(a.location || 'Untitled session') + '</span>' +
+          '<button class="rt-icon-btn" data-action="edit-active-title" title="Rename">' + icon('pencil', 14) + '</button></div>' +
+        '<div class="rt-session-meta rt-mono" id="session-meta">' +
+          escapeHtml(new Date(a.startedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) +
+          ' · ' + a.discIds.length + ' disc' + (a.discIds.length !== 1 ? 's' : '') + throwLabel + throwStyleLabel(t)) + '</div></div></div>';
 
-  var html = '<div class="rt-tab-content"><div class="rt-session-header"><div>' +
-    '<div class="rt-session-loc">' + icon('mappin', 15) + ' ' + escapeHtml(a.location || 'Untitled session') + '</div>' +
-    '<div class="rt-session-meta rt-mono" id="session-meta">' +
-      escapeHtml(new Date(a.startedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) +
-      ' · ' + a.discIds.length + ' disc' + (a.discIds.length !== 1 ? 's' : '') + throwLabel + throwStyleLabel(t)) + '</div></div></div>';
+  var html = '<div class="rt-tab-content">' + titleBlock;
 
   html += throwStyleCardHtml(t);
   html += startBlock;
@@ -1065,6 +1143,29 @@ function doCancelSession() {
   ui.cancelConfirm = false; ui.manualDistFor = null; ui.manualMode = false; ui.lastPos = null;
   renderMain();
 }
+function doSaveActiveTitle() {
+  var input = document.getElementById('edit-active-title-input');
+  if (!input || !ACTIVE) return;
+  var val = input.value.trim();
+  ACTIVE.location = val;
+  saveKey(KEYS.active, ACTIVE);
+  if (val) addLocation(val);
+  ui.editingActiveTitle = false;
+  renderMain();
+}
+function doSaveSessionTitle(id) {
+  var input = document.getElementById('edit-title-input-' + id);
+  if (!input) return;
+  var val = input.value.trim();
+  var s = SESSIONS.find(function (x) { return x.id === id; });
+  if (s) {
+    s.location = val;
+    saveKey(KEYS.sessions, SESSIONS);
+    if (val) addLocation(val);
+  }
+  ui.editingSessionTitleId = null;
+  renderMain();
+}
 
 /* ================================================================ */
 /*  History tab                                                       */
@@ -1097,7 +1198,7 @@ function historyTabHtml() {
         }).map(function (id) {
           var d = DISCS.find(function (x) { return x.id === id; });
           var r = t.recoveries ? t.recoveries[id] : null;
-          return '<li class="rt-list-row">' + discChip(d ? d.color : '#999', 22) +
+          return '<li class="rt-list-row">' + discVisual(d, 22) +
             '<div class="rt-list-main"><div class="rt-list-title">' + (d ? escapeHtml(d.brand) : 'Unknown disc') + '</div></div>' +
             '<div class="rt-mono rt-list-sub">' + (r ? fmtDist(r.distanceM, UNIT) : 'not recovered') + '</div></li>';
         }).join('');
@@ -1109,17 +1210,27 @@ function historyTabHtml() {
       }).join('');
     }
 
-    return '<li class="rt-history-item">' +
-      '<div class="rt-swipe-actions"><button class="rt-swipe-delete-btn" data-action="delete-session" data-id="' + s.id + '">' +
-        icon('trash', 18) + '<span>Delete</span></button></div>' +
-      '<div class="rt-swipe-content" data-id="' + s.id + '">' +
-        '<button class="rt-history-summary" data-action="toggle-history" data-id="' + s.id + '">' +
+    var editingTitle = ui.editingSessionTitleId === s.id;
+    var summaryInner = editingTitle
+      ? '<div class="rt-title-edit-row" style="padding:12px">' +
+          '<input class="rt-input" id="edit-title-input-' + s.id + '" value="' + escapeHtml(s.location || '') + '" placeholder="Untitled session">' +
+          '<button class="rt-icon-btn" data-action="save-session-title" data-id="' + s.id + '" title="Save">' + icon('check', 16) + '</button>' +
+          '<button class="rt-icon-btn" data-action="cancel-session-title" title="Cancel">' + icon('x', 16) + '</button>' +
+        '</div>'
+      : '<div class="rt-history-summary" data-action="toggle-history" data-id="' + s.id + '">' +
         '<div><div class="rt-list-title">' + escapeHtml(s.location || 'Untitled session') + '</div><div class="rt-list-sub rt-mono">' +
         new Date(s.startedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) +
         ' · ' + s.discIds.length + ' disc' + (s.discIds.length !== 1 ? 's' : '') +
         (throwCount > 1 ? ' · ' + throwCount + ' throws' : '') +
         (avg != null ? ' · avg ' + fmtDist(avg, UNIT) : '') + '</div></div>' +
-        (isOpen ? icon('chevronup', 18) : icon('chevrondown', 18)) + '</button>' + detail +
+        '<button class="rt-icon-btn" data-action="edit-session-title" data-id="' + s.id + '" title="Rename">' + icon('pencil', 15) + '</button>' +
+        (isOpen ? icon('chevronup', 18) : icon('chevrondown', 18)) + '</div>';
+
+    return '<li class="rt-history-item">' +
+      '<div class="rt-swipe-actions"><button class="rt-swipe-delete-btn" data-action="delete-session" data-id="' + s.id + '">' +
+        icon('trash', 18) + '<span>Delete</span></button></div>' +
+      '<div class="rt-swipe-content" data-id="' + s.id + '">' +
+        summaryInner + detail +
       '</div>' +
     '</li>';
   }).join('');
@@ -1201,7 +1312,7 @@ function buildShell() {
   document.getElementById('app').innerHTML =
     '<div class="rt-shell">' +
       '<header class="rt-topbar">' +
-        '<div class="rt-wordmark">RETRIEVE<span class="rt-wordmark-dot">.</span><span class="rt-tagline">drive practice log</span></div>' +
+        '<div class="rt-wordmark">SEND IT<span class="rt-wordmark-dot">.</span><span class="rt-tagline">drive practice log</span></div>' +
         '<button class="rt-unit-toggle" id="unit-btn" data-action="toggle-unit">' + UNIT + '</button>' +
       '</header>' +
       '<main class="rt-main" id="main"></main>' +
@@ -1217,6 +1328,8 @@ function handleClick(e) {
   switch (action) {
     case 'set-tab': TAB = id; renderTabbar(); renderMain(); break;
     case 'select-color': doSelectColor(btn.dataset.hex); break;
+    case 'trigger-photo-capture': triggerPhotoCapture(); break;
+    case 'clear-add-photo': doClearAddPhoto(); break;
     case 'add-disc': doAddDisc(); break;
     case 'remove-disc-ask': ui.confirmDeleteId = id; renderMain(); break;
     case 'remove-disc-confirm': doRemoveDisc(id); break;
@@ -1244,6 +1357,12 @@ function handleClick(e) {
     case 'confirm-cancel-session': doCancelSession(); break;
     case 'toggle-history': ui.openHistoryId = (ui.openHistoryId === id ? null : id); renderMain(); break;
     case 'delete-session': doDeleteSession(id); break;
+    case 'edit-active-title': ui.editingActiveTitle = true; renderMain(); break;
+    case 'save-active-title': doSaveActiveTitle(); break;
+    case 'cancel-active-title': ui.editingActiveTitle = false; renderMain(); break;
+    case 'edit-session-title': ui.editingSessionTitleId = id; renderMain(); break;
+    case 'save-session-title': doSaveSessionTitle(id); break;
+    case 'cancel-session-title': ui.editingSessionTitleId = null; renderMain(); break;
     case 'toggle-unit':
       UNIT = UNIT === 'ft' ? 'm' : 'ft';
       saveKey(KEYS.prefs, { unit: UNIT });
@@ -1268,6 +1387,9 @@ function boot() {
   app.addEventListener('click', handleClick);
   app.addEventListener('input', function (e) {
     if (e.target && e.target.id === 'throwtype-other-input') onThrowTypeOtherInput(e);
+  });
+  app.addEventListener('change', function (e) {
+    if (e.target && e.target.id === 'add-photo-input') onAddPhotoInputChange(e);
   });
   app.addEventListener('pointerdown', swipePointerDown);
   app.addEventListener('pointermove', swipePointerMove);
