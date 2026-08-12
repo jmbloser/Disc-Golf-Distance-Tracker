@@ -9,6 +9,9 @@
 <meta name="apple-mobile-web-app-title" content="Send It">
 <meta name="theme-color" content="#2E5233">
 <title>Send It — Disc Golf Drive Log</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
@@ -62,6 +65,7 @@
     line-height: 1;
     display: flex; align-items: baseline; gap: 8px;
   }
+  .rt-logo-icon { flex-shrink: 0; align-self: center; }
   .rt-wordmark-dot { color: var(--flag); }
   .rt-tagline {
     font-family: 'Inter', sans-serif;
@@ -303,6 +307,11 @@
     cursor: pointer; background: none; border: none; width: 100%; text-align: left;
   }
   .rt-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 0 10px 10px; }
+  .rt-flight-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 0 10px 10px; }
+  .rt-mini-label {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--muted); padding: 8px 12px 4px;
+  }
   .rt-stat { text-align: center; background: var(--paper); border: 1px solid var(--line); border-radius: 9px; padding: 8px 4px; }
   .rt-stat-val { font-size: 14px; font-weight: 600; color: var(--fairway-dark); font-family: 'IBM Plex Mono', monospace; }
   .rt-stat-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-top: 2px; }
@@ -584,14 +593,29 @@ function discStats(discId) {
   var sum = dists.reduce(function (a, b) { return a + b; }, 0);
   return { count: dists.length, avg: sum / dists.length, min: Math.min.apply(null, dists), max: Math.max.apply(null, dists) };
 }
-function statsBlockHtml(stats) {
-  if (!stats) return '<p class="rt-help-text" style="padding:0 12px 10px">No recorded throws yet.</p>';
-  return '<div class="rt-stats-grid">' +
-    '<div class="rt-stat"><div class="rt-stat-val">' + stats.count + '</div><div class="rt-stat-label">throws</div></div>' +
-    '<div class="rt-stat"><div class="rt-stat-val">' + fmtDist(stats.avg, UNIT) + '</div><div class="rt-stat-label">avg</div></div>' +
-    '<div class="rt-stat"><div class="rt-stat-val">' + fmtDist(stats.min, UNIT) + '</div><div class="rt-stat-label">min</div></div>' +
-    '<div class="rt-stat"><div class="rt-stat-val">' + fmtDist(stats.max, UNIT) + '</div><div class="rt-stat-label">max</div></div>' +
-  '</div>';
+function fmtFlightNum(n) { return n == null ? '—' : n; }
+function fmtFlightShort(f) {
+  if (!f) return '';
+  return [f.speed, f.glide, f.turn, f.fade].map(function (v) { return v == null ? '–' : v; }).join('/');
+}
+function statsBlockHtml(stats, flight) {
+  var flightBlock = flight
+    ? '<div class="rt-mini-label">Flight numbers</div><div class="rt-flight-grid">' +
+        '<div class="rt-stat"><div class="rt-stat-val">' + fmtFlightNum(flight.speed) + '</div><div class="rt-stat-label">speed</div></div>' +
+        '<div class="rt-stat"><div class="rt-stat-val">' + fmtFlightNum(flight.glide) + '</div><div class="rt-stat-label">glide</div></div>' +
+        '<div class="rt-stat"><div class="rt-stat-val">' + fmtFlightNum(flight.turn) + '</div><div class="rt-stat-label">turn</div></div>' +
+        '<div class="rt-stat"><div class="rt-stat-val">' + fmtFlightNum(flight.fade) + '</div><div class="rt-stat-label">fade</div></div>' +
+      '</div>'
+    : '';
+  var throwsBlock = !stats
+    ? '<p class="rt-help-text" style="padding:0 12px 10px">No recorded throws yet.</p>'
+    : (flight ? '<div class="rt-mini-label">Throw history</div>' : '') + '<div class="rt-stats-grid">' +
+        '<div class="rt-stat"><div class="rt-stat-val">' + stats.count + '</div><div class="rt-stat-label">throws</div></div>' +
+        '<div class="rt-stat"><div class="rt-stat-val">' + fmtDist(stats.avg, UNIT) + '</div><div class="rt-stat-label">avg</div></div>' +
+        '<div class="rt-stat"><div class="rt-stat-val">' + fmtDist(stats.min, UNIT) + '</div><div class="rt-stat-label">min</div></div>' +
+        '<div class="rt-stat"><div class="rt-stat-val">' + fmtDist(stats.max, UNIT) + '</div><div class="rt-stat-label">max</div></div>' +
+      '</div>';
+  return flightBlock + throwsBlock;
 }
 
 /* ================================================================ */
@@ -621,6 +645,19 @@ function bagTabHtml() {
         '<div id="add-photo-row" style="display:flex;align-items:center;gap:10px;margin-top:2px">' + addPhotoRowHtml() + '</div>' +
         '<input type="file" accept="image/*" capture="environment" id="add-photo-input" style="display:none">' +
       '</div>' +
+      '<div class="rt-field">' +
+        '<button type="button" class="rt-link-btn" id="flight-toggle-btn" data-action="toggle-flight-numbers">+ Add flight numbers</button>' +
+        '<div class="rt-field-row" id="flight-numbers-row" style="display:none;margin-top:6px">' +
+          '<div class="rt-field" style="flex:1"><label class="rt-label">Speed</label>' +
+            '<input class="rt-input rt-mono" id="add-speed" type="number" step="0.5" placeholder="9"></div>' +
+          '<div class="rt-field" style="flex:1"><label class="rt-label">Glide</label>' +
+            '<input class="rt-input rt-mono" id="add-glide" type="number" step="0.5" placeholder="5"></div>' +
+          '<div class="rt-field" style="flex:1"><label class="rt-label">Turn</label>' +
+            '<input class="rt-input rt-mono" id="add-turn" type="number" step="0.5" placeholder="-1"></div>' +
+          '<div class="rt-field" style="flex:1"><label class="rt-label">Fade</label>' +
+            '<input class="rt-input rt-mono" id="add-fade" type="number" step="0.5" placeholder="2"></div>' +
+        '</div>' +
+      '</div>' +
       '<button class="rt-btn rt-btn-flag" data-action="add-disc">' + icon('plus', 16) + ' Add to bag</button>' +
     '</div>';
 
@@ -639,11 +676,12 @@ function bagTabHtml() {
       discVisual(d) +
       '<div class="rt-list-main"><div class="rt-list-title">' + escapeHtml(d.brand) + '</div>' +
         '<div class="rt-list-sub rt-mono">' + (d.weight ? d.weight + 'g' : 'weight —') +
+        (d.flight ? ' · ' + fmtFlightShort(d.flight) : '') +
         (stats ? ' · ' + stats.count + ' throw' + (stats.count !== 1 ? 's' : '') : '') + '</div></div>' +
       (isOpen ? icon('chevronup', 16) : icon('chevrondown', 16)) +
       '<button class="rt-icon-btn" data-action="remove-disc-ask" data-id="' + d.id + '">' + icon('trash', 17) + '</button>' +
     '</div>';
-    var detail = isOpen ? statsBlockHtml(stats) : '';
+    var detail = isOpen ? statsBlockHtml(stats, d.flight) : '';
     return '<li class="rt-disc-item">' + header + detail + '</li>';
   }).join('');
 
@@ -665,6 +703,20 @@ function doSelectColor(hex) {
     if (!on && ring) ring.remove();
   });
 }
+function parseFlightField(id) {
+  var el = document.getElementById(id);
+  if (!el || el.value.trim() === '') return null;
+  var n = parseFloat(el.value);
+  return Number.isNaN(n) ? null : n;
+}
+function toggleFlightNumbers() {
+  var row = document.getElementById('flight-numbers-row');
+  var btn = document.getElementById('flight-toggle-btn');
+  if (!row) return;
+  var showing = row.style.display !== 'none';
+  row.style.display = showing ? 'none' : 'flex';
+  if (btn) btn.textContent = showing ? '+ Add flight numbers' : '\u2013 Hide flight numbers';
+}
 function doAddDisc() {
   var brandEl = document.getElementById('add-brand');
   var weightEl = document.getElementById('add-weight');
@@ -673,7 +725,15 @@ function doAddDisc() {
   if (!brand) { brandEl.focus(); return; }
   var weight = weightEl.value ? parseInt(weightEl.value, 10) : null;
   var hex = hexEl.value.trim() ? hexEl.value.trim() : ui.addFormColor;
-  DISCS.push({ id: uid(), brand: brand, weight: weight, color: hex, photo: ui.addFormPhoto || null, addedAt: Date.now() });
+  var flight = {
+    speed: parseFlightField('add-speed'), glide: parseFlightField('add-glide'),
+    turn: parseFlightField('add-turn'), fade: parseFlightField('add-fade'),
+  };
+  var hasFlight = flight.speed != null || flight.glide != null || flight.turn != null || flight.fade != null;
+  DISCS.push({
+    id: uid(), brand: brand, weight: weight, color: hex, photo: ui.addFormPhoto || null,
+    flight: hasFlight ? flight : null, addedAt: Date.now(),
+  });
   saveKey(KEYS.discs, DISCS);
   ui.addFormColor = DISC_COLORS[4].hex;
   ui.addFormPhoto = null;
@@ -1312,7 +1372,18 @@ function buildShell() {
   document.getElementById('app').innerHTML =
     '<div class="rt-shell">' +
       '<header class="rt-topbar">' +
-        '<div class="rt-wordmark">SEND IT<span class="rt-wordmark-dot">.</span><span class="rt-tagline">drive practice log</span></div>' +
+        '<div class="rt-wordmark">' +
+          '<svg class="rt-logo-icon" width="28" height="28" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">' +
+            '<defs><radialGradient id="hdrDiscGrad" cx="35%" cy="30%" r="75%">' +
+              '<stop offset="0%" stop-color="#E8703F"/><stop offset="100%" stop-color="#D9491F"/>' +
+            '</radialGradient></defs>' +
+            '<path d="M 75,24 A 43 43 0 0 1 68,75" stroke="#203B26" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.85"/>' +
+            '<path d="M 80,33 A 51 51 0 0 1 73,69" stroke="#203B26" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.4"/>' +
+            '<circle cx="42" cy="52" r="30" fill="url(#hdrDiscGrad)"/>' +
+            '<circle cx="42" cy="52" r="13" fill="rgba(255,255,255,0.55)"/>' +
+          '</svg>' +
+          'SEND IT<span class="rt-wordmark-dot">.</span><span class="rt-tagline">drive practice log</span>' +
+        '</div>' +
         '<button class="rt-unit-toggle" id="unit-btn" data-action="toggle-unit">' + UNIT + '</button>' +
       '</header>' +
       '<main class="rt-main" id="main"></main>' +
@@ -1330,6 +1401,7 @@ function handleClick(e) {
     case 'select-color': doSelectColor(btn.dataset.hex); break;
     case 'trigger-photo-capture': triggerPhotoCapture(); break;
     case 'clear-add-photo': doClearAddPhoto(); break;
+    case 'toggle-flight-numbers': toggleFlightNumbers(); break;
     case 'add-disc': doAddDisc(); break;
     case 'remove-disc-ask': ui.confirmDeleteId = id; renderMain(); break;
     case 'remove-disc-confirm': doRemoveDisc(id); break;
